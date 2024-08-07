@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spelling Autocorrect and Next Word Prediction</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #7de4f9, #ec9108, #307ed6,#73aaea);
+            background-size: 200% 200%;
+            animation: gradient 15s ease infinite;
+            color: black;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        #inputText {
+            align-items: center;
+            text-align: left;
+            padding-left: 2%;
+            padding-top: 2%;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        textarea, #outputBox {
+            width: 50%;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 55px;
+            background: rgba(255, 255, 255, 0.1);
+            color: black;
+            font-size: 1.5em;
+        }
+
+        textarea::placeholder {
+            color: #bbb;
+        }
+
+        #outputBox {
+            display: none;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            width: 50%;
+            position: relative;
+        }
+
+        #fluencyBox {
+            display: none;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            width: 50%;
+            position: relative;
+        }
+
+        #typewriter {
+            font-family: 'Courier New', Courier, monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            border-right: 0.15em solid orange; /* Cursor */
+            animation: blink-caret 0.75s step-end infinite;
+            text-align: left;
+            font-size: 32px;
+            font-weight: bold;
+            position: relative;
+            margin-bottom: 10px; /* Adjust as needed */
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        @keyframes blink-caret {
+            from, to { border-color: transparent; }
+            50% { border-color: orange; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Auto-Phrase</h1>
+    <textarea id="inputText" placeholder="Enter your text here..."></textarea>
+    <br>
+    <div id="outputBox">
+        <p id="outputSuggestions"></p>
+    </div>
+    <div id="fluencyBox">
+        <p id="fluencyScore"></p>
+    </div>
+
+    <script>
+        async function getCorrection(inputWord) {
+            try {
+                let response = await fetch('http://localhost:5000/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: inputWord })
+                });
+                let data = await response.json();
+                return data.suggestions;
+            } catch (error) {
+                document.getElementById('outputSuggestions').innerText = 'An error occurred while fetching suggestions.';
+                return [];
+            }
+        }
+
+        async function getNextWordPrediction(seedText) {
+            try {
+                let response = await fetch('http://localhost:5000/predict-next', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ seed_text: seedText })
+                });
+                let data = await response.json();
+                return data.next_words;
+            } catch (error) {
+                document.getElementById('outputSuggestions').innerText = 'An error occurred while fetching the next word prediction.';
+                return [];
+            }
+        }
+
+        async function evaluateFluency(sentence) {
+            try {
+                let response = await fetch('http://localhost:5000/evaluate-fluency', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ sentence: sentence })
+                });
+                let data = await response.json();
+                return data.fluency_score;
+            } catch (error) {
+                document.getElementById('fluencyScore').innerText = 'An error occurred while evaluating fluency.';
+                return 'Error';
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            document.getElementById('inputText').addEventListener('keydown', async function(event) {
+                if (event.key === ' ') {
+                    let inputText = document.getElementById('inputText').value.trim();
+                    let words = inputText.split(" ");
+                    let lastWord = words[words.length - 1];
+
+                    let suggestions = await getCorrection(lastWord);
+                    if (suggestions.length > 1 || suggestions[0] !== 'Your word seems to be correct') {
+                        document.getElementById('outputSuggestions').innerText = suggestions.join(', ');
+                        document.getElementById('outputBox').style.display = 'block';
+                    } else {
+                        let nextWords = await getNextWordPrediction(inputText);
+                        document.getElementById('outputSuggestions').innerText = nextWords.join(', ');
+                        document.getElementById('outputBox').style.display = 'block';
+                    }
+                } else if (event.key === 'Enter') {
+                    event.preventDefault(); // Prevent adding a new line
+                    let inputText = document.getElementById('inputText').value.trim();
+                    let fluencyScore = await evaluateFluency(inputText);
+                    document.getElementById('fluencyScore').innerText = 'Fluency Score: ' + fluencyScore;
+                    document.getElementById('fluencyBox').style.display = 'block';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
